@@ -27,38 +27,40 @@ def loading_data(path_data: Path) -> gpd.GeoDataFrame:
 
     return data
 
-
 def gdf_to_fc(gdf, label_col="label"):
     """Convert GeoDataFrame to EE FeatureCollection."""
     features = []
+
     for idx, row in gdf.iterrows():
         geom_type = row.geometry.geom_type
-        if geom_type != 'Point':
-            logger.warning(f"Feature {idx} is not a Point. Skipping.")
+
+        # Vérifier si le type est supporté
+        if geom_type not in ['Point', 'LineString', 'Polygon', 'MultiPolygon']:
+            logger.warning(f"Feature {idx} is not a supported geometry. Skipping.")
             continue
-        geom = ee.Geometry.Point(row.geometry.coords[0])
+        # Convertir en EE Geometry selon le type
+        if geom_type == 'Point':
+            geom = ee.Geometry.Point(row.geometry.coords[0])
+        elif geom_type == 'LineString':
+            geom = ee.Geometry.LineString(list(row.geometry.coords))
+        else:  # Polygon ou MultiPolygon
+            if geom_type == 'Polygon':
+                geom_coords = [list(row.geometry.exterior.coords)]
+            else:  # MultiPolygon
+                geom_coords = [list(poly.exterior.coords) for poly in row.geometry.geoms]
+            geom = ee.Geometry.Polygon(geom_coords)
+
+        # Creating the  feature
         feature = ee.Feature(geom, { "label": row[label_col] })
         features.append(feature)
+
     return ee.FeatureCollection(features)
 
 
-def get_sentinel2(path_data, start_date, end_date):
-    try :
-        data = loading_data(path_data)
 
 
-
-    except Exception as e:
-        logger.error(e)
-
-
-
-
-    return ee.Feature()
-
-
-
-def get_sentinel2(path_data, start_date, end_date, cloud_thresh=30, label_col="landcover", output_file="training_s2.geojson"):
+def get_sentinel2(path_data, start_date, end_date, cloud_thresh=30,
+        label_col="landcover", output_file="training_s2.geojson"):
     """Download Sentinel-2 composite and extract bands for each point, with tqdm progress bar."""
     try:
         gdf = loading_data(path_data)
