@@ -6,7 +6,8 @@ from io import BytesIO
 import geopandas as gpd
 from dotenv import load_dotenv
 from loguru import logger
-
+import geemap
+from tqdm import tqdm
 
 def loading_data(path_data: Path) -> gpd.GeoDataFrame:
     """
@@ -27,25 +28,100 @@ def loading_data(path_data: Path) -> gpd.GeoDataFrame:
     return data
 
 
+def gdf_to_fc(gdf, label_col="label"):
+    """Convert GeoDataFrame to EE FeatureCollection."""
+    features = []
+    for idx, row in gdf.iterrows():
+        geom_type = row.geometry.geom_type
+        if geom_type != 'Point':
+            logger.warning(f"Feature {idx} is not a Point. Skipping.")
+            continue
+        geom = ee.Geometry.Point(row.geometry.coords[0])
+        feature = ee.Feature(geom, { "label": row[label_col] })
+        features.append(feature)
+    return ee.FeatureCollection(features)
+
+
+def get_sentinel2(path_data, start_date, end_date):
+    try :
+        data = loading_data(path_data)
+
+
+
+    except Exception as e:
+        logger.error(e)
+
+
+
+
+    return ee.Feature()
+
+
+
+def get_sentinel2(path_data, start_date, end_date, cloud_thresh=30, label_col="landcover", output_file="training_s2.geojson"):
+    """Download Sentinel-2 composite and extract bands for each point, with tqdm progress bar."""
+    try:
+        gdf = loading_data(path_data)
+        fc_list = []
+
+        # Parcourir chaque feature avec tqdm
+        for idx, row in tqdm(gdf.iterrows(), total=len(gdf), desc="Processing points"):
+            geom_type = row.geometry.geom_type
+            if geom_type != 'Point':
+                logger.warning(f"Feature {idx} is not a Point. Skipping.")
+                continue
+            geom = ee.Geometry.Point(row.geometry.coords[0])
+            feature = ee.Feature(geom, {label_col: row[label_col]})
+            fc_list.append(feature)
+
+        if not fc_list:
+            raise ValueError("⚠️ No valid points to process!")
+
+        fc = ee.FeatureCollection(fc_list)
+
+        # Filtrer Sentinel-2 SR
+        s2 = (ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
+              .filterBounds(fc)
+              .filterDate(start_date, end_date)
+              .filter(ee.Filter.lte('CLOUDY_PIXEL_PERCENTAGE', cloud_thresh))
+              .select([
+                  'B1','B2','B3','B4','B5','B6','B7','B8','B8A','B11','B12','B9'
+              ])
+        )
+
+        # Composite médian
+        s2_median = s2.median()
+
+        # Sample les valeurs pour chaque point
+        sample = s2_median.sampleRegions(
+            collection=fc,
+            properties=[label_col],
+            scale=10
+        )
+
+        # Export local GeoJSON
+        geemap.ee_export_vector(sample, filename=output_file)
+        logger.success(f"✅ Export terminé : {output_file}")
+
+    except Exception as e:
+        logger.error(e)
 
 if __name__ == "__main__":
     # Charger les variables d'environnement
     load_dotenv()
+    ee.Authenticate()
+    ee.Initialize(project=os.getenv("EE_PROJECT"))
 
     # Parser CLI
-    parser = argparse.ArgumentParser(description='Load a GeoJSON or Shapefile and display info')
-    parser.add_argument(
-        '--input',
-        type=str,
-        required=True,
-        help='Path to the GeoJSON or Shapefile'
-    )
+    parser = argparse.ArgumentParser(description='Download Sentinel-2 values for each point in a GeoJSON')
+    parser.add_argument('--input', type=str, required=True, help='Path to the GeoJSON with points')
+    parser.add_argument('--start', type=str, required=True, help='Start date YYYY-MM-DD')
+    parser.add_argument('--end', type=str, required=True, help='End date YYYY-MM-DD')
+    parser.add_argument('--cloud', type=float, default=30, help='Max cloud percentage')
+    parser.add_argument('--output', type=str, default='training_s2.geojson', help='Output GeoJSON file')
 
     args = parser.parse_args()
     input_path = Path(args.input)
 
-    # Charger le fichier
-    gdf = loading_data(input_path)
-
-    # Afficher un aperçu
-    print(gdf.head())
+    # Télécharger les valeurs Sentinel-2
+    get_sentinel2(input_path, args.start, args.end, args.cloud, output_file=args.output)
