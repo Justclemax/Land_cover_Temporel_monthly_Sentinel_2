@@ -2,7 +2,7 @@ import argparse
 from pathlib import Path
 import ee
 import os
-from io import BytesIO
+import numpy as np
 import geopandas as gpd
 from dotenv import load_dotenv
 from loguru import logger
@@ -59,6 +59,18 @@ def gdf_to_fc(gdf, label_col="label"):
 
 
 
+
+def normalize(array):
+    """Normalize a numpy array to the range 0.0 - 1.0"""
+    array_min, array_max = np.nanmin(array), np.nanmax(array)
+
+    if array_max == array_min:
+        return np.zeros_like(array)
+
+    return (array - array_min) / (array_max - array_min)
+
+
+
 def get_sentinel2(path_data, start_date, end_date, cloud_thresh=30,
         label_col="landcover", output_file="training_s2.geojson"):
     """Download Sentinel-2 composite and extract bands for each point, with tqdm progress bar."""
@@ -94,8 +106,18 @@ def get_sentinel2(path_data, start_date, end_date, cloud_thresh=30,
         # Composite médian
         s2_median = s2.median()
 
+        # Normaliser chaque bande
+        band_names = s2_median.bandNames().getInfo()
+        normalized_bands = []
+
+        for band in band_names:
+            normalized = s2_median.select(band).unitScale(0, 3000)  # Sentinel-2 SR 0-3000 approx
+            normalized_bands.append(normalized)
+
+        s2_normalized = ee.Image.cat(normalized_bands)
+
         # Sample les valeurs pour chaque point
-        sample = s2_median.sampleRegions(
+        sample = s2_normalized.sampleRegions(
             collection=fc,
             properties=[label_col],
             scale=10
