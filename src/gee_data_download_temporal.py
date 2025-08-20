@@ -25,6 +25,7 @@ from loguru import logger
 import geemap
 from tqdm import tqdm
 
+
 def loading_data(path_data: Path) -> gpd.GeoDataFrame:
     """Load a GeoJSON (or shapefile) into a GeoDataFrame."""
     try:
