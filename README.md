@@ -43,7 +43,15 @@ pip install -r requirements.txt
 # 8. Authentification Google Earth Engine (une seule fois)
 earthengine authenticate
 
-# 9. Télécharger les données Sentinel-2 pour vos points GeoJSON
+# 9. Créer un fichier .env à la racine du projet
+touch .env
+
+# Ajouter la ligne suivante dans .env
+EE_PROJECT=Votre_nom_de_projet_EE
+  
+
+# 10. Télécharger les données Sentinel-2 pour vos points GeoJSON
+cd src 
 python gee_data_download.py \
   --input data/landcover.geojson \
   --start 2024-01-01 \
@@ -51,5 +59,5 @@ python gee_data_download.py \
   --cloud 60 \
   --output data/all_points_s2.csv
 
-# 10. Lancer Jupyter Notebook pour entraîner le modèle
+# 11. Lancer Jupyter Notebook pour entraîner le modèle
 jupyter notebook
