@@ -52,12 +52,14 @@ EE_PROJECT=Votre_nom_de_projet_EE
 
 # 10. Télécharger les données Sentinel-2 pour vos points GeoJSON
 cd src 
-python gee_data_download.py \
-  --input data/landcover.geojson \
-  --start 2024-01-01 \
-  --end 2024-12-31 \
-  --cloud 60 \
-  --output data/all_points_s2.csv
+
+python gee_data_download_temporal.py \
+  --input ../data/training_data.geojson \
+  --start 2025-01-01 \
+  --end 2025-04-30 \
+  --landcover name \
+  --cloud 40 \
+  --output ../data/all_data_landcover.csv
 
 # 11. Lancer Jupyter Notebook pour entraîner le modèle
 jupyter notebook

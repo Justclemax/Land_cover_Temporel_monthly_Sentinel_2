@@ -98,6 +98,9 @@ def get_sentinel2_monthly(path_data, start_date, end_date, cloud_thresh=30,
             elif geom_type == "Polygon":
                 polys = split_polygon_grid(row.geometry, max_cells=4)
                 ee_geoms = [ee.Geometry.Polygon(list(p.exterior.coords)) for p in polys]
+            elif geom_type == "MultiPolygon":
+                polys = split_polygon_grid(row.geometry, max_cells=4)
+                ee_geoms = [ee.Geometry.MultiPolygon(list(p.exterior.coords)) for p in polys]
             else:
                 logger.warning(f"Geometry type {geom_type} not supported. Skipping geometry {idx}.")
                 continue
@@ -159,10 +162,11 @@ if __name__ == "__main__":
     parser.add_argument('--input', type=str, required=True, help='Path to the GeoJSON with points/polygons')
     parser.add_argument('--start', type=str, required=True, help='Start date YYYY-MM-DD')
     parser.add_argument('--end', type=str, required=True, help='End date YYYY-MM-DD')
+    parser.add_argument('--landcover', type=str, required=True, help='Name of the column containing land cover types in the input file')
     parser.add_argument('--cloud', type=float, default=30, help='Max cloud percentage')
     parser.add_argument('--output', type=str, default='all_points_s2.csv', help='Output CSV file')
 
     args = parser.parse_args()
     input_path = Path(args.input)
 
-    get_sentinel2_monthly(input_path, args.start, args.end, cloud_thresh=args.cloud, output_file=args.output)
+    get_sentinel2_monthly(input_path, args.start, args.end, cloud_thresh=args.cloud, output_file=args.output,label_col=args.landcover )
